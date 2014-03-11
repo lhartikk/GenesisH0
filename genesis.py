@@ -8,7 +8,9 @@ from construct import *
 
 
 OP_CHECKSIG = 'ac'
-scriptSig = '04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73'.decode('hex')
+pszTimestamp = 'The Times 03/Jan/2009 Chancellor on brink of second bailout for banks'
+scriptPrefix = '04ffff001d'
+scriptSig = ('04ffff001d010445' + pszTimestamp.encode('hex')).decode('hex')
 scriptPubKeyLen = '41'
 outputScriptPubKey = '04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f'
 outputScript = (scriptPubKeyLen + outputScriptPubKey + OP_CHECKSIG).decode('hex')
@@ -25,7 +27,7 @@ prevOutput =  struct.pack('<qqqq', 0,0,0,0)
 prevoutIndex = 0xFFFFFFFF
 sequence = 0xFFFFFFFF
 outValue = 0x000000012a05f200 
-scriptSigLen = 0x4D
+scriptSigLen = len(scriptSig)
 outputScriptLen = 0x43
 
 transaction = Struct("transaction",
@@ -42,7 +44,7 @@ Byte('outputScriptLen'),
 Bytes('outputScript',  outputScriptLen),
 UBInt32('locktime'))
 
-tx = transaction.parse('\x00'*204)
+tx = transaction.parse('\x00'*(127 + scriptSigLen))
 tx.version = struct.pack('<I', version)
 tx.numInputs = numInputs
 tx.prevOutput = prevOutput
@@ -63,6 +65,7 @@ hashPrevBlock = struct.pack('<qqqq', 0,0,0,0)
 print "merkle hash: " + hashMerkleRoot
 print "time: " + str(time)
 print "bits: " + str(bits)
+print "pszTimestamp: " + pszTimestamp
 
 
 
@@ -84,14 +87,18 @@ genesisblock.Bits = struct.pack('<I', bits)
 genesisblock.Nonce = struct.pack('<I', startNonce)
 
 nonce = startNonce
+print 'Searching for genesis hash..'
 
 while True:
   genesisHash = hashlib.sha256(hashlib.sha256(blockHeader.build(genesisblock)).digest()).digest()
   blockHash = blockHeader.build(genesisblock)
 
-  if int(genesisHash.encode('hex_codec')[60:64], 16) == 0:
+  if int(genesisHash.encode('hex_codec')[56:64], 16) == 0:
     print 'genesis hash found!'
-    print 'genesis hash: '+ genesisHash.encode('hex_codec')
+    print 'nonce: ' + str(nonce)
+    print struct.pack('<' + str(len(genesisHash)) + 's', genesisHash).encode('hex_codec')
+    print 'genesis hash: '+ struct.pack('<32s' ,genesisHash)
+    print hashlib.sha256(hashlib.sha256(blockHeader.build(genesisblock)).digest()).hexdigest()
     break
   else:
     nonce = nonce + 1
