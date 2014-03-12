@@ -3,9 +3,16 @@ import binascii
 import struct
 import array
 import struct
+import time
+import os
+import sys
 
 from construct import *
 
+
+def changeEndian(stringHex):
+  chunks, chunk_size = len(stringHex), 2
+  return ''.join([ stringHex[i:i+chunk_size] for i in range(0, chunks, chunk_size) ][::-1])
 
 OP_CHECKSIG = 'ac'
 pszTimestamp = 'The Times 03/Jan/2009 Chancellor on brink of second bailout for banks'
@@ -15,8 +22,8 @@ scriptPubKeyLen = '41'
 outputScriptPubKey = '04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f'
 outputScript = (scriptPubKeyLen + outputScriptPubKey + OP_CHECKSIG).decode('hex')
 
-startNonce = 2083236893
-time = 1231006505
+startNonce = 2083236897
+nTime = 1231006505
 bits = 0x1d00ffff
 
 version = 1
@@ -63,7 +70,7 @@ hashMerkleRoot =hash.encode('hex_codec')
 hashPrevBlock = struct.pack('<qqqq', 0,0,0,0)
 
 print "merkle hash: " + hashMerkleRoot
-print "time: " + str(time)
+print "time: " + str(nTime)
 print "bits: " + str(bits)
 print "pszTimestamp: " + pszTimestamp
 
@@ -82,24 +89,32 @@ genesisblock = blockHeader.parse('\x00'*80)
 genesisblock.version = struct.pack('<I', version)
 genesisblock.hashPrevBlock = hashPrevBlock
 genesisblock.hashMerkleRoot = hashMerkleRoot.decode('hex')
-genesisblock.Time = struct.pack('<I', time)
+genesisblock.Time = struct.pack('<I', nTime)
 genesisblock.Bits = struct.pack('<I', bits)
 genesisblock.Nonce = struct.pack('<I', startNonce)
 
 nonce = startNonce
+millis = time.time()
+interval = 5000000
 print 'Searching for genesis hash..'
-
+dataBlock = blockHeader.build(genesisblock)
 while True:
-  genesisHash = hashlib.sha256(hashlib.sha256(blockHeader.build(genesisblock)).digest()).digest()
-  blockHash = blockHeader.build(genesisblock)
 
-  if int(genesisHash.encode('hex_codec')[56:64], 16) == 0:
+  if nonce % interval == 0:
+    now = time.time()
+    sys.stdout.write('\r' + str(round(interval/(now - millis)/1000)) + " khash/s")
+    sys.stdout.flush()
+    millis = now
+  genesisHash = hashlib.sha256(hashlib.sha256(dataBlock).digest()).digest()
+
+  '''if int(genesisHash.encode('hex_codec')[56:64], 16) == 0:
     print 'genesis hash found!'
     print 'nonce: ' + str(nonce)
-    print struct.pack('<' + str(len(genesisHash)) + 's', genesisHash).encode('hex_codec')
-    print 'genesis hash: '+ struct.pack('<32s' ,genesisHash)
-    print hashlib.sha256(hashlib.sha256(blockHeader.build(genesisblock)).digest()).hexdigest()
+    print 'genesis hash: '+ genesisHash.encode('hex_codec')
+    print 'genesis hash: '+ changeEndian(genesisHash.encode('hex_codec'))
     break
-  else:
-    nonce = nonce + 1
-    genesisblock.Nonce = struct.pack('<I', nonce)
+  else:'''
+  nonce = nonce + 1
+  dataBlock = dataBlock[0:66] + struct.pack('<I', nonce)
+
+
