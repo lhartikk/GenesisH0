@@ -6,6 +6,7 @@ import struct
 import time
 import os
 import sys
+import optparse
 
 from construct import *
 
@@ -14,17 +15,39 @@ def changeEndian(stringHex):
   chunks, chunk_size = len(stringHex), 2
   return ''.join([ stringHex[i:i+chunk_size] for i in range(0, chunks, chunk_size) ][::-1])
 
-OP_CHECKSIG = 'ac'
-pszTimestamp = 'The Times 03/Jan/2009 Chancellor on brink of second bailout for banks'
-scriptPrefix = '04ffff001d'
-scriptSig = ('04ffff001d010445' + pszTimestamp.encode('hex')).decode('hex')
+
+parser = optparse.OptionParser()
+parser.add_option("-t", "--time", dest="time", default=int(time.time()), 
+                 type="int", help="the (unix) time when the genesisblock is created")
+parser.add_option("-z", "--timestamp", dest="timestamp", default="The Times 03/Jan/2009 Chancellor on brink of second bailout for banks",
+                 type="string", help="the pszTimestamp found in the coinbase of the genesisblock")
+parser.add_option("-n", "--nonce", dest="nonce", default=0,
+                 type="int", help="the first value of the nonce that will be incremented when searching the genesis hash")
+parser.add_option("-s", "--scrypt", dest="scrypt", default=False, action="store_true",
+                  help="calculate genesis block using scrypt")
+
+(options, args) = parser.parse_args()
+
+pszTimestamp = options.timestamp
+startNonce = options.nonce
+nTime = options.time
+isScrypt = options.scrypt
+
+if isScrypt:
+  print 'algorithm: scrypt'
+else:
+  print 'algorithm: sha256'
+
+
+
+bits = 0x1d00ffff
+
+scriptPrefix = '04ffff001d0104' + chr(len(pszTimestamp)).encode('hex')
+scriptSig = (scriptPrefix + pszTimestamp.encode('hex')).decode('hex')
 scriptPubKeyLen = '41'
+OP_CHECKSIG = 'ac'
 outputScriptPubKey = '04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f'
 outputScript = (scriptPubKeyLen + outputScriptPubKey + OP_CHECKSIG).decode('hex')
-
-startNonce = 2083236897
-nTime = 1231006505
-bits = 0x1d00ffff
 
 version = 1
 numInputs = 1
@@ -33,7 +56,7 @@ locktime = 0
 prevOutput =  struct.pack('<qqqq', 0,0,0,0)
 prevoutIndex = 0xFFFFFFFF
 sequence = 0xFFFFFFFF
-outValue = 0x000000012a05f200 
+outValue = 0x000000012a05f200 #50 coins
 scriptSigLen = len(scriptSig)
 outputScriptLen = 0x43
 
@@ -71,7 +94,7 @@ hashPrevBlock = struct.pack('<qqqq', 0,0,0,0)
 
 print "merkle hash: " + hashMerkleRoot
 print "time: " + str(nTime)
-print "bits: " + str(bits)
+print "bits: " + str(hex(bits))
 print "pszTimestamp: " + pszTimestamp
 
 
@@ -90,31 +113,33 @@ genesisblock.version = struct.pack('<I', version)
 genesisblock.hashPrevBlock = hashPrevBlock
 genesisblock.hashMerkleRoot = hashMerkleRoot.decode('hex')
 genesisblock.Time = struct.pack('<I', nTime)
-genesisblock.Bits = struct.pack('<I', bits)
+genesisblock.Bits =  struct.pack('<I', bits)
 genesisblock.Nonce = struct.pack('<I', startNonce)
 
 nonce = startNonce
 millis = time.time()
-interval = 5000000
+interval = 2000000
 print 'Searching for genesis hash..'
 dataBlock = blockHeader.build(genesisblock)
 while True:
 
-  if nonce % interval == 0:
+  if nonce % interval == interval - 1:
     now = time.time()
-    sys.stdout.write('\r' + str(round(interval/(now - millis)/1000)) + " khash/s")
+    hashrate = round(interval/(now - millis)/1000)
+    genTime = round(pow(2, 32) / hashrate / 1000 / 3600, 1)
+    sys.stdout.write('\r' + str(hashrate) + " khash/s, estimate: " + str(genTime) + "h")
     sys.stdout.flush()
     millis = now
   genesisHash = hashlib.sha256(hashlib.sha256(dataBlock).digest()).digest()
 
-  '''if int(genesisHash.encode('hex_codec')[56:64], 16) == 0:
+  if int(genesisHash.encode('hex_codec')[56:64], 16) == 0:
+    print ''
     print 'genesis hash found!'
     print 'nonce: ' + str(nonce)
-    print 'genesis hash: '+ genesisHash.encode('hex_codec')
     print 'genesis hash: '+ changeEndian(genesisHash.encode('hex_codec'))
     break
-  else:'''
-  nonce = nonce + 1
-  dataBlock = dataBlock[0:66] + struct.pack('<I', nonce)
+  else:
+   nonce = nonce + 1
+   dataBlock = dataBlock[0:66] + struct.pack('<I', nonce)
 
 
