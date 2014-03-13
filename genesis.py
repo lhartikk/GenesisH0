@@ -7,14 +7,9 @@ import time
 import os
 import sys
 import optparse
+import scrypt
 
 from construct import *
-
-
-def changeEndian(stringHex):
-  chunks, chunk_size = len(stringHex), 2
-  return ''.join([ stringHex[i:i+chunk_size] for i in range(0, chunks, chunk_size) ][::-1])
-
 
 parser = optparse.OptionParser()
 parser.add_option("-t", "--time", dest="time", default=int(time.time()), 
@@ -25,6 +20,9 @@ parser.add_option("-n", "--nonce", dest="nonce", default=0,
                  type="int", help="the first value of the nonce that will be incremented when searching the genesis hash")
 parser.add_option("-s", "--scrypt", dest="scrypt", default=False, action="store_true",
                   help="calculate genesis block using scrypt")
+parser.add_option("-p", "--pubkey", dest="pubkey", default="04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f",
+                 type="string", help="The pubkey found in the output script")
+
 
 (options, args) = parser.parse_args()
 
@@ -32,21 +30,25 @@ pszTimestamp = options.timestamp
 startNonce = options.nonce
 nTime = options.time
 isScrypt = options.scrypt
+outputScriptPubKey = options.pubkey
+
+bits = 0x1d00ffff
+target = 0x00ffff * 2**(8*(0x1d - 3)) 
 
 if isScrypt:
   print 'algorithm: scrypt'
+  bits = 0x1e0ffff0
+  target = 0x0ffff0 * 2**(8*(0x1e - 3))
 else:
   print 'algorithm: sha256'
 
 
 
-bits = 0x1d00ffff
-
 scriptPrefix = '04ffff001d0104' + chr(len(pszTimestamp)).encode('hex')
 scriptSig = (scriptPrefix + pszTimestamp.encode('hex')).decode('hex')
 scriptPubKeyLen = '41'
 OP_CHECKSIG = 'ac'
-outputScriptPubKey = '04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f'
+
 outputScript = (scriptPubKeyLen + outputScriptPubKey + OP_CHECKSIG).decode('hex')
 
 version = 1
@@ -92,12 +94,11 @@ hash = hashlib.sha256(hashlib.sha256(transaction.build(tx)).digest()).digest()
 hashMerkleRoot =hash.encode('hex_codec')
 hashPrevBlock = struct.pack('<qqqq', 0,0,0,0)
 
-print "merkle hash: " + hashMerkleRoot
+print "merkle hash: " + hash[::-1].encode('hex_codec')
+print "pszTimestamp: " + pszTimestamp
+print "pubkey: " + outputScriptPubKey
 print "time: " + str(nTime)
 print "bits: " + str(hex(bits))
-print "pszTimestamp: " + pszTimestamp
-
-
 
 blockHeader = Struct("blockHeader",
   Bytes("version",4),
@@ -121,25 +122,50 @@ millis = time.time()
 interval = 2000000
 print 'Searching for genesis hash..'
 dataBlock = blockHeader.build(genesisblock)
-while True:
 
-  if nonce % interval == interval - 1:
-    now = time.time()
-    hashrate = round(interval/(now - millis)/1000)
-    genTime = round(pow(2, 32) / hashrate / 1000 / 3600, 1)
-    sys.stdout.write('\r' + str(hashrate) + " khash/s, estimate: " + str(genTime) + "h")
-    sys.stdout.flush()
-    millis = now
-  genesisHash = hashlib.sha256(hashlib.sha256(dataBlock).digest()).digest()
+if not(isScrypt):
+  while True:
+    if nonce % interval == interval - 1:
+      now = time.time()
+      hashrate = round(interval/(now - millis))
+      genTime = round(pow(2, 32) / hashrate / 3600, 1)
+      sys.stdout.write('\r' + str(hashrate) + " hash/s, estimate: " + str(genTime) + "h")
+      sys.stdout.flush()
+      millis = now
 
-  if int(genesisHash.encode('hex_codec')[56:64], 16) == 0:
-    print ''
-    print 'genesis hash found!'
-    print 'nonce: ' + str(nonce)
-    print 'genesis hash: '+ changeEndian(genesisHash.encode('hex_codec'))
-    break
-  else:
-   nonce = nonce + 1
-   dataBlock = dataBlock[0:66] + struct.pack('<I', nonce)
+    genesisHash = hashlib.sha256(hashlib.sha256(dataBlock).digest()).digest()
 
+    if int(genesisHash[::-1].encode('hex_codec'), 16) < target:
+      print ''
+      print 'genesis hash found!'
+      print 'nonce: ' + str(nonce)
+      print 'genesis hash: '+ genesisHash[::-1].encode('hex_codec')
+      break
+    else:
+     nonce = nonce + 1
+     dataBlock = dataBlock[0:len(dataBlock) - 4] + struct.pack('<I', nonce)
+else:
+  interval = 1000
+  while True:
+    if nonce % interval == interval - 1:
+      now = time.time()
+      hashrate = round(interval/(now - millis))
+      genTime =  round(0.00024414 * pow(2, 32) / hashrate / 3600, 1)
+      sys.stdout.write('\r' + str(hashrate) + " hash/s, estimate: " + str(genTime) + "h")
+      sys.stdout.flush()
+      millis = now
+
+    scryptHash = scrypt.hash(dataBlock,dataBlock,1024,1,1,32)
+
+    if int(scryptHash[::-1].encode('hex_codec'), 16) < target:
+
+      genesisHash = hashlib.sha256(hashlib.sha256(dataBlock).digest()).digest()
+      print ''
+      print 'genesis hash found!'
+      print 'nonce: ' + str(nonce)
+      print 'genesis hash: '+ genesisHash[::-1].encode('hex_codec')
+      break
+    else:
+     nonce = nonce + 1
+     dataBlock = dataBlock[0:len(dataBlock) - 4] + struct.pack('<I', nonce)
 
