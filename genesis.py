@@ -1,59 +1,34 @@
-import hashlib
-import binascii
-import struct
-import array
-import struct
-import time
-import os
-import sys
-import optparse
+import hashlib, binascii, struct, array, os, time, sys, optparse
 import scrypt
 
 from construct import *
 
-
 def main():
-  options = getArgs()
-  pszTimestamp = options.timestamp
-  startNonce = options.nonce
-  nTime = options.time
-  isScrypt = options.scrypt
-  pubkey = options.pubkey
+  options = get_args()
 
+  #https://en.bitcoin.it/wiki/Difficulty
+  bits   = get_bits(options)
+  target = get_target(options)
 
-  #see https://en.bitcoin.it/wiki/Difficulty for the magic numbers
-  bits = 0x1d00ffff
-  target = 0x00ffff * 2**(8*(0x1d - 3)) 
-
-  if isScrypt:
-    print 'algorithm: scrypt'
-    bits = 0x1e0ffff0
-    target = 0x0ffff0 * 2**(8*(0x1e - 3))
-  else:
-    print 'algorithm: sha256'
-
-  inputScript = createInputScript(pszTimestamp)
-  outputScript = createOutputScript(pubkey)
-  tx = createTransaction(inputScript, outputScript)
+  input_script  = create_input_script(options.timestamp)
+  output_script = create_output_script(options.pubkey)
 
   #hash merkle root is the double sha256 hash of the transaction(s) 
-  hashMerkleRoot = hashlib.sha256(hashlib.sha256(tx).digest()).digest()
+  tx = create_transaction(input_script, output_script)
+  hash_merkle_root = hashlib.sha256(hashlib.sha256(tx).digest()).digest()
+  print_block_info(options, hash_merkle_root)
 
-  print "merkle hash: " + hashMerkleRoot[::-1].encode('hex_codec')
-  print "pszTimestamp: " + pszTimestamp
-  print "pubkey: " + pubkey
-  print "time: " + str(nTime)
-  print "bits: " + str(hex(bits))
+  block_header        = create_block_header(hash_merkle_root, options.time, bits, options.nonce)
+  genesis_hash, nonce = generate_hash(block_header, options.scrypt, options.nonce, target)
+  announce_found_genesis(genesis_hash, nonce)
 
-  dataBlock = createBlockHeader(hashMerkleRoot, nTime, bits, startNonce)
+def get_bits(options):
+  return 0x1e0ffff0 if options.scrypt else 0x1d00ffff
+def get_target(options):
+  return 0x0ffff0 * 2**(8*(0x1e - 3)) if options.scrypt else 0x00ffff * 2**(8*(0x1d - 3)) 
 
-  print 'Searching for genesis hash..'
-  genesisHash, nonce = generateHash(dataBlock, isScrypt, startNonce, target)
-  print "genesis hash found!"
-  print "nonce: " + str(nonce)
-  print "genesis hash: " + genesisHash.encode('hex_codec')
 
-def getArgs():
+def get_args():
   parser = optparse.OptionParser()
   parser.add_option("-t", "--time", dest="time", default=int(time.time()), 
                    type="int", help="the (unix) time when the genesisblock is created")
@@ -70,91 +45,114 @@ def getArgs():
   return options
 
 
+def create_input_script(psz_timestamp):
+  script_prefix = '04ffff001d0104' + chr(len(psz_timestamp)).encode('hex')
+  return (script_prefix + psz_timestamp.encode('hex')).decode('hex')
 
-def createInputScript(pszTimestamp):
-  scriptPrefix = '04ffff001d0104' + chr(len(pszTimestamp)).encode('hex')
-  return (scriptPrefix + pszTimestamp.encode('hex')).decode('hex')
 
-def createOutputScript(pubkey):
-  scriptLen = '41'
+def create_output_script(pubkey):
+  script_len = '41'
   OP_CHECKSIG = 'ac'
-  return (scriptLen + pubkey + OP_CHECKSIG).decode('hex')
+  return (script_len + pubkey + OP_CHECKSIG).decode('hex')
 
-def createTransaction(inputScript, outputScript):
+
+def create_transaction(input_script, output_script):
   transaction = Struct("transaction",
     Bytes("version", 4),
-    Byte("numInputs"),
-    StaticField("prevOutput", 32),
-    UBInt32('prevoutIndex'),
-    Byte('scriptSigLen'),
-    Bytes('scriptSig', len(inputScript)),
+    Byte("num_inputs"),
+    StaticField("prev_output", 32),
+    UBInt32('prev_out_idx'),
+    Byte('input_script_len'),
+    Bytes('input_script', len(input_script)),
     UBInt32('sequence'),
-    Byte('numOutputs'),
-    Bytes('outValue', 8),
-    Byte('outputScriptLen'),
-    Bytes('outputScript',  0x43),
+    Byte('num_outputs'),
+    Bytes('out_value', 8),
+    Byte('output_script_len'),
+    Bytes('output_script',  0x43),
     UBInt32('locktime'))
 
-  tx = transaction.parse('\x00'*(127 + len(inputScript)))
-
-  tx.version = struct.pack('<I', 1)
-  tx.numInputs = 1
-  tx.prevOutput = struct.pack('<qqqq', 0,0,0,0)
-  tx.prevoutIndex = 0xFFFFFFFF
-  tx.scriptSigLen = len(inputScript)
-  tx.scriptSig = inputScript
-  tx.sequence = 0xFFFFFFFF
-  tx.numOutputs = 1
-  tx.outValue = struct.pack('<q' ,0x000000012a05f200) #50 coins
-  tx.outputScriptLen = 0x43
-  tx.outputScript = outputScript
-  tx.locktime = 0 
-
+  tx = transaction.parse('\x00'*(127 + len(input_script)))
+  tx.version           = struct.pack('<I', 1)
+  tx.num_inputs        = 1
+  tx.prev_output       = struct.pack('<qqqq', 0,0,0,0)
+  tx.prev_out_idx      = 0xFFFFFFFF
+  tx.input_script_len  = len(input_script)
+  tx.input_script      = input_script
+  tx.sequence          = 0xFFFFFFFF
+  tx.num_outputs       = 1
+  tx.out_value         = struct.pack('<q' ,0x000000012a05f200) #50 coins
+  tx.output_script_len = 0x43
+  tx.output_script     = output_script
+  tx.locktime          = 0 
   return transaction.build(tx)
 
 
-def createBlockHeader(hashMerkleRoot, time, bits, nonce):
-  blockHeader = Struct("blockHeader",
+def create_block_header(hash_merkle_root, time, bits, nonce):
+  block_header = Struct("block_header",
     Bytes("version",4),
-    Bytes("hashPrevBlock", 32),
-    Bytes("hashMerkleRoot", 32),
-    Bytes("Time", 4),
-    Bytes("Bits", 4),
-    Bytes("Nonce", 4))
+    Bytes("hash_prev_block", 32),
+    Bytes("hash_merkle_root", 32),
+    Bytes("time", 4),
+    Bytes("bits", 4),
+    Bytes("nonce", 4))
 
-  genesisblock = blockHeader.parse('\x00'*80)
-  genesisblock.version = struct.pack('<I', 1)
-  genesisblock.hashPrevBlock = struct.pack('<qqqq', 0,0,0,0)
-  genesisblock.hashMerkleRoot = hashMerkleRoot
-  genesisblock.Time = struct.pack('<I', time)
-  genesisblock.Bits =  struct.pack('<I', bits)
-  genesisblock.Nonce = struct.pack('<I', nonce)
-  return blockHeader.build(genesisblock)
+  genesisblock = block_header.parse('\x00'*80)
+  genesisblock.version          = struct.pack('<I', 1)
+  genesisblock.hash_prev_block  = struct.pack('<qqqq', 0,0,0,0)
+  genesisblock.hash_merkle_root = hash_merkle_root
+  genesisblock.time             = struct.pack('<I', time)
+  genesisblock.bits             = struct.pack('<I', bits)
+  genesisblock.nonce            = struct.pack('<I', nonce)
+  return block_header.build(genesisblock)
 
-def generateHash(dataBlock, isScrypt, startNonce, target):
-  nonce = startNonce
-  millis = time.time()
-  difficulty = float(0xFFFF) * 2**208 / target
-  hashRateInterval = 2000000 * difficulty
+
+#https://en.bitcoin.it/wiki/Block_hashing_algorithm
+def generate_hash(data_block, is_scrypt, start_nonce, target):
+  print 'Searching for genesis hash..'
+  nonce           = start_nonce
+  last_updated    = time.time()
+  difficulty      = float(0xFFFF) * 2**208 / target
+  update_interval = int(1000000 * difficulty)
+
   while True:
-    if nonce % hashRateInterval == hashRateInterval - 1:
-      now = time.time()
-      hashrate = round(hashRateInterval/(now - millis))
-      genTime = round(difficulty * pow(2, 32) / hashrate / 3600, 1)
-      sys.stdout.write('\r' + str(hashrate) + " hash/s, estimate: " + str(genTime) + "h")
-      sys.stdout.flush()
-      millis = now
-    shaHash = hashlib.sha256(hashlib.sha256(dataBlock).digest()).digest()[::-1]
+    sha256_hash = hashlib.sha256(hashlib.sha256(data_block).digest()).digest()[::-1]
 
-    if isScrypt:
-      headerHash = scrypt.hash(dataBlock,dataBlock,1024,1,1,32)[::-1]
+    if is_scrypt:
+      header_hash = scrypt.hash(data_block,data_block,1024,1,1,32)[::-1]
     else:
-      headerHash = shaHash
+      header_hash = sha256_hash
 
-    if int(headerHash.encode('hex_codec'), 16) < target:
-      return (shaHash, nonce)
+    if int(header_hash.encode('hex_codec'), 16) < target:
+      return (sha256_hash, nonce)
     else:
      nonce = nonce + 1
-     dataBlock = dataBlock[0:len(dataBlock) - 4] + struct.pack('<I', nonce)  
+     data_block = data_block[0:len(data_block) - 4] + struct.pack('<I', nonce)  
+    last_updated = calculate_hashrate(nonce, update_interval, difficulty, last_updated)
 
+def calculate_hashrate(nonce, update_interval, difficulty, last_updated):
+  if nonce % update_interval == update_interval - 1:
+    now = time.time()
+    hashrate = round(update_interval/(now - last_updated))
+    generation_time = round(difficulty * pow(2, 32) / hashrate / 3600, 1)
+    sys.stdout.write('\r' + str(hashrate) + " hash/s, estimate: " + str(generation_time) + "h")
+    sys.stdout.flush()
+    return now
+  return last_updated
+
+def print_block_info(options, hash_merkle_root):
+  print "algorithm: "    + ("scrypt" if options.scrypt else "sha256")
+  print "merkle hash: "  + hash_merkle_root[::-1].encode('hex_codec')
+  print "pszTimestamp: " + options.timestamp
+  print "pubkey: "       + options.pubkey
+  print "time: "         + str(options.time)
+  print "bits: "         + str(hex(get_bits(options)))
+
+
+def announce_found_genesis(genesis_hash, nonce):
+  print "genesis hash found!"
+  print "nonce: "        + str(nonce)
+  print "genesis hash: " + genesis_hash.encode('hex_codec')
+
+
+#GOGOGO!
 main()
