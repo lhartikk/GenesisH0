@@ -24,16 +24,11 @@ def main():
   #see https://en.bitcoin.it/wiki/Difficulty for the magic numbers
   bits = 0x1d00ffff
   target = 0x00ffff * 2**(8*(0x1d - 3)) 
-  difficulty = 1
-
-  hashRateInterval = 2000000
 
   if isScrypt:
     print 'algorithm: scrypt'
     bits = 0x1e0ffff0
     target = 0x0ffff0 * 2**(8*(0x1e - 3))
-    difficulty = 0.00024414
-    hashRateInterval = 1000
   else:
     print 'algorithm: sha256'
 
@@ -51,7 +46,9 @@ def main():
   print "bits: " + str(hex(bits))
 
   dataBlock = createBlockHeader(hashMerkleRoot, nTime, bits, startNonce)
-  genesisHash, nonce = generateHash(dataBlock, isScrypt, startNonce, target, hashRateInterval, difficulty)
+
+  print 'Searching for genesis hash..'
+  genesisHash, nonce = generateHash(dataBlock, isScrypt, startNonce, target)
   print "genesis hash found!"
   print "nonce: " + str(nonce)
   print "genesis hash: " + genesisHash.encode('hex_codec')
@@ -134,11 +131,11 @@ def createBlockHeader(hashMerkleRoot, time, bits, nonce):
   genesisblock.Nonce = struct.pack('<I', nonce)
   return blockHeader.build(genesisblock)
 
-def generateHash(dataBlock, isScrypt, startNonce, target, hashRateInterval, difficulty):
+def generateHash(dataBlock, isScrypt, startNonce, target):
   nonce = startNonce
   millis = time.time()
-
-  print 'Searching for genesis hash..'
+  difficulty = float(0xFFFF) * 2**208 / target
+  hashRateInterval = 2000000 * difficulty
   while True:
     if nonce % hashRateInterval == hashRateInterval - 1:
       now = time.time()
