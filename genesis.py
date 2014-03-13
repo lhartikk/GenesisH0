@@ -3,17 +3,18 @@ import scrypt
 
 from construct import *
 
+
 def main():
   options = get_args()
 
-  #https://en.bitcoin.it/wiki/Difficulty
+  # https://en.bitcoin.it/wiki/Difficulty
   bits   = get_bits(options)
   target = get_target(options)
 
   input_script  = create_input_script(options.timestamp)
   output_script = create_output_script(options.pubkey)
 
-  #hash merkle root is the double sha256 hash of the transaction(s) 
+  # hash merkle root is the double sha256 hash of the transaction(s) 
   tx = create_transaction(input_script, output_script)
   hash_merkle_root = hashlib.sha256(hashlib.sha256(tx).digest()).digest()
   print_block_info(options, hash_merkle_root)
@@ -21,11 +22,6 @@ def main():
   block_header        = create_block_header(hash_merkle_root, options.time, bits, options.nonce)
   genesis_hash, nonce = generate_hash(block_header, options.scrypt, options.nonce, target)
   announce_found_genesis(genesis_hash, nonce)
-
-def get_bits(options):
-  return 0x1e0ffff0 if options.scrypt else 0x1d00ffff
-def get_target(options):
-  return 0x0ffff0 * 2**(8*(0x1e - 3)) if options.scrypt else 0x00ffff * 2**(8*(0x1d - 3)) 
 
 
 def get_args():
@@ -43,6 +39,14 @@ def get_args():
 
   (options, args) = parser.parse_args()
   return options
+
+
+def get_bits(options):
+  return 0x1e0ffff0 if options.scrypt else 0x1d00ffff
+
+
+def get_target(options):
+  return 0x0ffff0 * 2**(8*(0x1e - 3)) if options.scrypt else 0x00ffff * 2**(8*(0x1d - 3)) 
 
 
 def create_input_script(psz_timestamp):
@@ -106,7 +110,7 @@ def create_block_header(hash_merkle_root, time, bits, nonce):
   return block_header.build(genesisblock)
 
 
-#https://en.bitcoin.it/wiki/Block_hashing_algorithm
+# https://en.bitcoin.it/wiki/Block_hashing_algorithm
 def generate_hash(data_block, is_scrypt, start_nonce, target):
   print 'Searching for genesis hash..'
   nonce           = start_nonce
@@ -115,29 +119,36 @@ def generate_hash(data_block, is_scrypt, start_nonce, target):
   update_interval = int(1000000 * difficulty)
 
   while True:
-    sha256_hash = hashlib.sha256(hashlib.sha256(data_block).digest()).digest()[::-1]
-
-    if is_scrypt:
-      header_hash = scrypt.hash(data_block,data_block,1024,1,1,32)[::-1]
-    else:
-      header_hash = sha256_hash
-
-    if int(header_hash.encode('hex_codec'), 16) < target:
+    sha256_hash, header_hash = generate_hashes_from_block(data_block, is_scrypt)
+    last_updated             = calculate_hashrate(nonce, update_interval, difficulty, last_updated)
+    if is_genesis_hash(header_hash, target):
       return (sha256_hash, nonce)
     else:
-     nonce = nonce + 1
+     nonce      = nonce + 1
      data_block = data_block[0:len(data_block) - 4] + struct.pack('<I', nonce)  
-    last_updated = calculate_hashrate(nonce, update_interval, difficulty, last_updated)
+
+
+def generate_hashes_from_block(data_block, is_scrypt):
+  sha256_hash = hashlib.sha256(hashlib.sha256(data_block).digest()).digest()[::-1]
+  header_hash = scrypt.hash(data_block,data_block,1024,1,1,32)[::-1] if is_scrypt else sha256_hash
+  return sha256_hash, header_hash
+
+
+def is_genesis_hash(header_hash, target):
+  return int(header_hash.encode('hex_codec'), 16) < target
+
 
 def calculate_hashrate(nonce, update_interval, difficulty, last_updated):
   if nonce % update_interval == update_interval - 1:
-    now = time.time()
-    hashrate = round(update_interval/(now - last_updated))
+    now             = time.time()
+    hashrate        = round(update_interval/(now - last_updated))
     generation_time = round(difficulty * pow(2, 32) / hashrate / 3600, 1)
-    sys.stdout.write('\r' + str(hashrate) + " hash/s, estimate: " + str(generation_time) + "h")
+    sys.stdout.write("\r%s hash/s, estimate: %s h"%(str(hashrate), str(generation_time) + "h"))
     sys.stdout.flush()
     return now
-  return last_updated
+  else:
+    return last_updated
+
 
 def print_block_info(options, hash_merkle_root):
   print "algorithm: "    + ("scrypt" if options.scrypt else "sha256")
@@ -154,5 +165,5 @@ def announce_found_genesis(genesis_hash, nonce):
   print "genesis hash: " + genesis_hash.encode('hex_codec')
 
 
-#GOGOGO!
+# GOGOGO!
 main()
