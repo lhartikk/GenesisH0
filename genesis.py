@@ -143,7 +143,7 @@ def calculate_hashrate(nonce, update_interval, difficulty, last_updated):
     now             = time.time()
     hashrate        = round(update_interval/(now - last_updated))
     generation_time = round(difficulty * pow(2, 32) / hashrate / 3600, 1)
-    sys.stdout.write("\r%s hash/s, estimate: %s h"%(str(hashrate), str(generation_time) + "h"))
+    sys.stdout.write("\r%s hash/s, estimate: %s h"%(str(hashrate), str(generation_time)))
     sys.stdout.flush()
     return now
   else:
