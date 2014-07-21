@@ -36,20 +36,19 @@ Create the original genesis hash found in DarkCoin. (requires [xcoin-hash](https
     python genesis.py -a X11 -z "Wired 09/Jan/2014 The Grand Experiment Goes Live: Overstock.com Is Now Accepting Bitcoins" -t 1317972665 -p "040184710fa689ad5023690c80f3a49c8f13f8d45b8c857fbcbc8bc4a8e4d3eb4b10f4d4604fa08dce601aaf0f470216fe1b51850b4acf21b179c45070ac7b03a9" -n 28917698 -t 1390095619
     
 ###Options
-    python genesis.py -h
-    
     Usage: genesis.py [options]
-
+    
     Options:
-    -h, --help            show this help message and exit
-    -t TIME, --time=TIME  the (unix) time when the genesisblock is created
-    -z TIMESTAMP, --timestamp=TIMESTAMP
-                          the pszTimestamp found in the coinbase of the
-                          genesisblock
-    -n NONCE, --nonce=NONCE
-                          the first value of the nonce that will be incremented
-                          when searching the genesis hash
-    -s, --scrypt          calculate genesis block using scrypt
-    -p PUBKEY, --pubkey=PUBKEY
-                          The pubkey found in the output script
+      -h, --helpshow this help message and exit
+      -t TIME, --time=TIME  the (unix) time when the genesisblock is created
+      -z TIMESTAMP, --timestamp=TIMESTAMP
+    the pszTimestamp found in the coinbase of the
+    genesisblock
+      -n NONCE, --nonce=NONCE
+    the first value of the nonce that will be incremented
+    when searching the genesis hash
+      -a ALGORITHM, --algorithm=ALGORITHM
+    the PoW algorithm: [SHA256|scrypt|X11]
+      -p PUBKEY, --pubkey=PUBKEY
+    the pubkey found in the output script
 
