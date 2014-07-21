@@ -39,7 +39,7 @@ Create the original genesis hash found in DarkCoin. (requires [xcoin-hash](https
     Usage: genesis.py [options]
     
     Options:
-      -h, --helpshow this help message and exit
+      -h, --help show this help message and exit
       -t TIME, --time=TIME  the (unix) time when the genesisblock is created
       -z TIMESTAMP, --timestamp=TIMESTAMP
          the pszTimestamp found in the coinbase of the genesisblock
