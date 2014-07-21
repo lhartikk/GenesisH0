@@ -3,7 +3,9 @@ A python script for creating the parameters required for a unique genesis block.
 
 ###Dependencies
     sudo pip install scrypt construct
-	
+
+To create geneses based on X11 algorithm you will also need to install the [xcoin-hash](https://github.com/lhartikk/xcoin-hash) module. 
+    
 ###Examples
 Create the original genesis hash found in Bitcoin
 
@@ -23,19 +25,19 @@ Output:
 Create the original genesis hash found in Litecoin
 
     python genesis.py -a scrypt -z "NY Times 05/Oct/2011 Steve Jobs, Apple’s Visionary, Dies at 56" -p "040184710fa689ad5023690c80f3a49c8f13f8d45b8c857fbcbc8bc4a8e4d3eb4b10f4d4604fa08dce601aaf0f470216fe1b51850b4acf21b179c45070ac7b03a9" -t 1317972665 -n 2084524493
-	
+    
 Create a unique genesis hash with custom pszTimestamp
 
     python genesis.py --scrypt -z "Time flies like an arrow. Fruit flies like a banana."
-	
+    
 
-Create the original genesis hash found in DarkCoin
+Create the original genesis hash found in DarkCoin. (requires [xcoin-hash](https://github.com/lhartikk/xcoin-hash))
 
     python genesis.py -a X11 -z "Wired 09/Jan/2014 The Grand Experiment Goes Live: Overstock.com Is Now Accepting Bitcoins" -t 1317972665 -p "040184710fa689ad5023690c80f3a49c8f13f8d45b8c857fbcbc8bc4a8e4d3eb4b10f4d4604fa08dce601aaf0f470216fe1b51850b4acf21b179c45070ac7b03a9" -n 28917698 -t 1390095619
     
 ###Options
     python genesis.py -h
-	
+    
     Usage: genesis.py [options]
 
     Options:
