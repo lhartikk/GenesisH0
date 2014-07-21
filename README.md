@@ -9,7 +9,7 @@ To create geneses based on X11 algorithm you will also need to install the [xcoi
 ###Examples
 Create the original genesis hash found in Bitcoin
 
-    python genesis.py  -z "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks" -n 2083236893 -t 1231006505
+    python genesis.py -z "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks" -n 2083236893 -t 1231006505
 Output:
 
     algorithm: sha256
@@ -28,7 +28,7 @@ Create the original genesis hash found in Litecoin
     
 Create a unique genesis hash with custom pszTimestamp
 
-    python genesis.py --scrypt -z "Time flies like an arrow. Fruit flies like a banana."
+    python genesis.py -a scrypt -z "Time flies like an arrow. Fruit flies like a banana."
     
 
 Create the original genesis hash found in DarkCoin. (requires [xcoin-hash](https://github.com/lhartikk/xcoin-hash))
