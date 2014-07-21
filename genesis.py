@@ -7,20 +7,20 @@ from construct import *
 def main():
   options = get_args()
 
+  algorithm = get_algorithm(options)
+
   # https://en.bitcoin.it/wiki/Difficulty
-  bits   = get_bits(options)
-  target = get_target(options)
+  bits, target   = get_difficulty(algorithm)
 
   input_script  = create_input_script(options.timestamp)
   output_script = create_output_script(options.pubkey)
-
   # hash merkle root is the double sha256 hash of the transaction(s) 
   tx = create_transaction(input_script, output_script)
   hash_merkle_root = hashlib.sha256(hashlib.sha256(tx).digest()).digest()
-  print_block_info(options, hash_merkle_root)
+  print_block_info(options, hash_merkle_root, bits)
 
   block_header        = create_block_header(hash_merkle_root, options.time, bits, options.nonce)
-  genesis_hash, nonce = generate_hash(block_header, options.scrypt, options.nonce, target)
+  genesis_hash, nonce = generate_hash(block_header, algorithm, options.nonce, target)
   announce_found_genesis(genesis_hash, nonce)
 
 
@@ -32,25 +32,36 @@ def get_args():
                    type="string", help="the pszTimestamp found in the coinbase of the genesisblock")
   parser.add_option("-n", "--nonce", dest="nonce", default=0,
                    type="int", help="the first value of the nonce that will be incremented when searching the genesis hash")
-  parser.add_option("-s", "--scrypt", dest="scrypt", default=False, action="store_true",
-                    help="calculate genesis block using scrypt")
+  parser.add_option("-a", "--algorithm", dest="algorithm", default="SHA256",
+                    help="the PoW algorithm")
   parser.add_option("-p", "--pubkey", dest="pubkey", default="04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f",
                    type="string", help="the pubkey found in the output script")
 
   (options, args) = parser.parse_args()
   return options
 
+def get_algorithm(options):
+  supported_algorithms = ["SHA256", "scrypt", "X11"]
+  if options.algorithm in supported_algorithms:
+    return options.algorithm
+  else:
+    sys.exit("Error: Given algorithm must be one of: " + str(supported_algorithms))
 
-def get_bits(options):
-  return 0x1e0ffff0 if options.scrypt else 0x1d00ffff
-
-
-def get_target(options):
-  return 0x0ffff0 * 2**(8*(0x1e - 3)) if options.scrypt else 0x00ffff * 2**(8*(0x1d - 3)) 
-
+def get_difficulty(algorithm):
+  if algorithm == "scrypt":
+    return 0x1e0ffff0, 0x0ffff0 * 2**(8*(0x1e - 3))
+  elif algorithm == "SHA256":
+    return 0x1d00ffff, 0x00ffff * 2**(8*(0x1d - 3)) 
+  elif algorithm == "X11":
+    return 0x1e0ffff0, 0x0ffff0 * 2**(8*(0x1e - 3))
 
 def create_input_script(psz_timestamp):
-  script_prefix = '04ffff001d0104' + chr(len(psz_timestamp)).encode('hex')
+  psz_prefix = ""
+  #use OP_PUSHDATA1 if required
+  if len(psz_timestamp) > 76: psz_prefix = '4c'
+
+  script_prefix = '04ffff001d0104' + psz_prefix + chr(len(psz_timestamp)).encode('hex')
+  print (script_prefix + psz_timestamp.encode('hex'))
   return (script_prefix + psz_timestamp.encode('hex')).decode('hex')
 
 
@@ -111,7 +122,7 @@ def create_block_header(hash_merkle_root, time, bits, nonce):
 
 
 # https://en.bitcoin.it/wiki/Block_hashing_algorithm
-def generate_hash(data_block, is_scrypt, start_nonce, target):
+def generate_hash(data_block, algorithm, start_nonce, target):
   print 'Searching for genesis hash..'
   nonce           = start_nonce
   last_updated    = time.time()
@@ -119,18 +130,30 @@ def generate_hash(data_block, is_scrypt, start_nonce, target):
   update_interval = int(1000000 * difficulty)
 
   while True:
-    sha256_hash, header_hash = generate_hashes_from_block(data_block, is_scrypt)
+    sha256_hash, header_hash = generate_hashes_from_block(data_block, algorithm)
     last_updated             = calculate_hashrate(nonce, update_interval, difficulty, last_updated)
     if is_genesis_hash(header_hash, target):
+      if algorithm == "X11":
+        return (header_hash, nonce)
       return (sha256_hash, nonce)
     else:
      nonce      = nonce + 1
      data_block = data_block[0:len(data_block) - 4] + struct.pack('<I', nonce)  
 
 
-def generate_hashes_from_block(data_block, is_scrypt):
+def generate_hashes_from_block(data_block, algorithm):
   sha256_hash = hashlib.sha256(hashlib.sha256(data_block).digest()).digest()[::-1]
-  header_hash = scrypt.hash(data_block,data_block,1024,1,1,32)[::-1] if is_scrypt else sha256_hash
+  header_hash = ""
+  if algorithm == 'scrypt':
+    header_hash = scrypt.hash(data_block,data_block,1024,1,1,32)[::-1] 
+  elif algorithm == 'SHA256':
+    header_hash = sha256_hash
+  elif algorithm == 'X11':
+    try:
+      exec('import %s' % "xcoin_hash")
+    except ImportError:
+      sys.exit("Cannot run X11 algorithm: module xcoin_hash not found")
+    header_hash = xcoin_hash.getPoWHash(data_block)[::-1]
   return sha256_hash, header_hash
 
 
@@ -150,13 +173,13 @@ def calculate_hashrate(nonce, update_interval, difficulty, last_updated):
     return last_updated
 
 
-def print_block_info(options, hash_merkle_root):
-  print "algorithm: "    + ("scrypt" if options.scrypt else "sha256")
+def print_block_info(options, hash_merkle_root, bits):
+  print "algorithm: "    + (options.algorithm)
   print "merkle hash: "  + hash_merkle_root[::-1].encode('hex_codec')
   print "pszTimestamp: " + options.timestamp
   print "pubkey: "       + options.pubkey
   print "time: "         + str(options.time)
-  print "bits: "         + str(hex(get_bits(options)))
+  print "bits: "         + str(hex(bits))
 
 
 def announce_found_genesis(genesis_hash, nonce):
