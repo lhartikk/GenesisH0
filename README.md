@@ -42,13 +42,12 @@ Create the original genesis hash found in DarkCoin. (requires [xcoin-hash](https
       -h, --helpshow this help message and exit
       -t TIME, --time=TIME  the (unix) time when the genesisblock is created
       -z TIMESTAMP, --timestamp=TIMESTAMP
-    the pszTimestamp found in the coinbase of the
-    genesisblock
+         the pszTimestamp found in the coinbase of the genesisblock
       -n NONCE, --nonce=NONCE
-    the first value of the nonce that will be incremented
-    when searching the genesis hash
+         the first value of the nonce that will be incremented
+         when searching the genesis hash
       -a ALGORITHM, --algorithm=ALGORITHM
-    the PoW algorithm: [SHA256|scrypt|X11]
+         the PoW algorithm: [SHA256|scrypt|X11]
       -p PUBKEY, --pubkey=PUBKEY
-    the pubkey found in the output script
+         the pubkey found in the output script
 
