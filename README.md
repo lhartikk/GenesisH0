@@ -1,5 +1,5 @@
 #GenesisH0
-A python script for creating the parameters required for a unique genesis block. SHA256/Scrypt/X11.
+A python script for creating the parameters required for a unique genesis block. SHA256/scrypt/X11.
 
 ###Dependencies
     sudo pip install scrypt construct
