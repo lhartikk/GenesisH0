@@ -15,7 +15,7 @@ def main():
   input_script  = create_input_script(options.timestamp)
   output_script = create_output_script(options.pubkey)
   # hash merkle root is the double sha256 hash of the transaction(s) 
-  tx = create_transaction(input_script, output_script)
+  tx = create_transaction(input_script, output_script,options)
   hash_merkle_root = hashlib.sha256(hashlib.sha256(tx).digest()).digest()
   print_block_info(options, hash_merkle_root, bits)
 
@@ -36,6 +36,8 @@ def get_args():
                     help="the PoW algorithm: [SHA256|scrypt|X11]")
   parser.add_option("-p", "--pubkey", dest="pubkey", default="04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f",
                    type="string", help="the pubkey found in the output script")
+  parser.add_option("-v", "--value", dest="value", default=5000000000,
+                   type="int", help="the value in coins for the output, full value (exp. in bitcoin 5000000000)")
 
   (options, args) = parser.parse_args()
   return options
@@ -71,7 +73,7 @@ def create_output_script(pubkey):
   return (script_len + pubkey + OP_CHECKSIG).decode('hex')
 
 
-def create_transaction(input_script, output_script):
+def create_transaction(input_script, output_script,options):
   transaction = Struct("transaction",
     Bytes("version", 4),
     Byte("num_inputs"),
@@ -95,7 +97,8 @@ def create_transaction(input_script, output_script):
   tx.input_script      = input_script
   tx.sequence          = 0xFFFFFFFF
   tx.num_outputs       = 1
-  tx.out_value         = struct.pack('<q' ,0x000000012a05f200) #50 coins
+  tx.out_value         = struct.pack('<q' ,options.value)#0x000005f5e100)#012a05f200) #50 coins
+  #tx.out_value         = struct.pack('<q' ,0x000000012a05f200) #50 coins
   tx.output_script_len = 0x43
   tx.output_script     = output_script
   tx.locktime          = 0 

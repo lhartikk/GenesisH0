@@ -50,4 +50,6 @@ Create the original genesis hash found in DarkCoin. (requires [xcoin-hash](https
          the PoW algorithm: [SHA256|scrypt|X11]
       -p PUBKEY, --pubkey=PUBKEY
          the pubkey found in the output script
+      -v VALUE, --value=VALUE
+         the value in coins for the output, full value (exp. in bitcoin 5000000000 - To get other coins value: Block Value * 100000000)
 
