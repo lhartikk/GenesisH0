@@ -161,7 +161,7 @@ def generate_hashes_from_block(data_block, algorithm):
     try:
       exec('import %s' % "x13_hash")
     except ImportError:
-      sys.exit("Cannot run X11 algorithm: module x13_hash not found")
+      sys.exit("Cannot run X13 algorithm: module x13_hash not found")
     header_hash = x13_hash.getPoWHash(data_block)[::-1]
   elif algorithm == 'X15':
     try:
