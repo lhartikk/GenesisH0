@@ -1,10 +1,11 @@
 #GenesisH0
-A python script for creating the parameters required for a unique genesis block. SHA256/scrypt/X11.
+A python script for creating the parameters required for a unique genesis block. SHA256/scrypt/X11/X13/X15.
 
 ###Dependencies
     sudo pip install scrypt construct
 
 To create geneses based on X11 algorithm you will also need to install the [xcoin-hash](https://github.com/lhartikk/xcoin-hash) module. 
+For X13 you will need the [x13_hash](https://github.com/sherlockcoin/X13-PythonHash) module and for X15 the [x15_hash](https://github.com/minings/x15_hash) module.
     
 ###Examples
 Create the original genesis hash found in Bitcoin
@@ -30,11 +31,16 @@ Create a unique genesis hash with custom pszTimestamp
 
     python genesis.py -a scrypt -z "Time flies like an arrow. Fruit flies like a banana."
     
-
 Create the original genesis hash found in DarkCoin. (requires [xcoin-hash](https://github.com/lhartikk/xcoin-hash))
 
-    python genesis.py -a X11 -z "Wired 09/Jan/2014 The Grand Experiment Goes Live: Overstock.com Is Now Accepting Bitcoins" -t 1317972665 -p "040184710fa689ad5023690c80f3a49c8f13f8d45b8c857fbcbc8bc4a8e4d3eb4b10f4d4604fa08dce601aaf0f470216fe1b51850b4acf21b179c45070ac7b03a9" -n 28917698 -t 1390095619
+    python genesis.py -a X11 -z "Wired 09/Jan/2014 The Grand Experiment Goes Live: Overstock.com Is Now Accepting Bitcoins" -t 1317972665 -p "040184710fa689ad5023690c80f3a49c8f13f8d45b8c857fbcbc8bc4a8e4d3eb4b10f4d4604fa08dce601aaf0f470216fe1b51850b4acf21b179c45070ac7b03a9" -n 28917698 -t 1390095618 -v 5000000000
+
+Create the original genesis hash found in HiroCoin (X11).
+
+    python genesis.py -a X11 -z "JapanToday 13/Mar/2014 Ways eyed to make planes easier to find in ocean" -p "040184710fa689ad5023690c80f3a49c8f13f8d45b8c857fbcbc8bc4a8e4d3eb4b10f4d4604fa08dce601aaf0f470216fe1b51850b4acf21b179c45070ac7b03a9" -n 1234746574 -t 1394723131 -v 40000000000
     
+
+
 ###Options
     Usage: genesis.py [options]
     
@@ -47,7 +53,9 @@ Create the original genesis hash found in DarkCoin. (requires [xcoin-hash](https
          the first value of the nonce that will be incremented
          when searching the genesis hash
       -a ALGORITHM, --algorithm=ALGORITHM
-         the PoW algorithm: [SHA256|scrypt|X11]
+         the PoW algorithm: [SHA256|scrypt|X11|X13|X15]
       -p PUBKEY, --pubkey=PUBKEY
          the pubkey found in the output script
+      -v VALUE, --value=VALUE
+         the value in coins for the output, full value (exp. in bitcoin 5000000000 - To get other coins value: Block Value * 100000000)
 

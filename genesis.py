@@ -15,7 +15,7 @@ def main():
   input_script  = create_input_script(options.timestamp)
   output_script = create_output_script(options.pubkey)
   # hash merkle root is the double sha256 hash of the transaction(s) 
-  tx = create_transaction(input_script, output_script)
+  tx = create_transaction(input_script, output_script,options)
   hash_merkle_root = hashlib.sha256(hashlib.sha256(tx).digest()).digest()
   print_block_info(options, hash_merkle_root, bits)
 
@@ -33,15 +33,17 @@ def get_args():
   parser.add_option("-n", "--nonce", dest="nonce", default=0,
                    type="int", help="the first value of the nonce that will be incremented when searching the genesis hash")
   parser.add_option("-a", "--algorithm", dest="algorithm", default="SHA256",
-                    help="the PoW algorithm: [SHA256|scrypt|X11]")
+                    help="the PoW algorithm: [SHA256|scrypt|X11|X13|X15]")
   parser.add_option("-p", "--pubkey", dest="pubkey", default="04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f",
                    type="string", help="the pubkey found in the output script")
+  parser.add_option("-v", "--value", dest="value", default=5000000000,
+                   type="int", help="the value in coins for the output, full value (exp. in bitcoin 5000000000 - To get other coins value: Block Value * 100000000)")
 
   (options, args) = parser.parse_args()
   return options
 
 def get_algorithm(options):
-  supported_algorithms = ["SHA256", "scrypt", "X11"]
+  supported_algorithms = ["SHA256", "scrypt", "X11", "X13", "X15"]
   if options.algorithm in supported_algorithms:
     return options.algorithm
   else:
@@ -52,7 +54,7 @@ def get_difficulty(algorithm):
     return 0x1e0ffff0, 0x0ffff0 * 2**(8*(0x1e - 3))
   elif algorithm == "SHA256":
     return 0x1d00ffff, 0x00ffff * 2**(8*(0x1d - 3)) 
-  elif algorithm == "X11":
+  elif algorithm == "X11" or algorithm == "X13" or algorithm == "X15":
     return 0x1e0ffff0, 0x0ffff0 * 2**(8*(0x1e - 3))
 
 def create_input_script(psz_timestamp):
@@ -71,7 +73,7 @@ def create_output_script(pubkey):
   return (script_len + pubkey + OP_CHECKSIG).decode('hex')
 
 
-def create_transaction(input_script, output_script):
+def create_transaction(input_script, output_script,options):
   transaction = Struct("transaction",
     Bytes("version", 4),
     Byte("num_inputs"),
@@ -95,7 +97,8 @@ def create_transaction(input_script, output_script):
   tx.input_script      = input_script
   tx.sequence          = 0xFFFFFFFF
   tx.num_outputs       = 1
-  tx.out_value         = struct.pack('<q' ,0x000000012a05f200) #50 coins
+  tx.out_value         = struct.pack('<q' ,options.value)#0x000005f5e100)#012a05f200) #50 coins
+  #tx.out_value         = struct.pack('<q' ,0x000000012a05f200) #50 coins
   tx.output_script_len = 0x43
   tx.output_script     = output_script
   tx.locktime          = 0 
@@ -133,7 +136,7 @@ def generate_hash(data_block, algorithm, start_nonce, target):
     sha256_hash, header_hash = generate_hashes_from_block(data_block, algorithm)
     last_updated             = calculate_hashrate(nonce, update_interval, difficulty, last_updated)
     if is_genesis_hash(header_hash, target):
-      if algorithm == "X11":
+      if algorithm == "X11" or algorithm == "X13" or algorithm == "X15":
         return (header_hash, nonce)
       return (sha256_hash, nonce)
     else:
@@ -154,6 +157,18 @@ def generate_hashes_from_block(data_block, algorithm):
     except ImportError:
       sys.exit("Cannot run X11 algorithm: module xcoin_hash not found")
     header_hash = xcoin_hash.getPoWHash(data_block)[::-1]
+  elif algorithm == 'X13':
+    try:
+      exec('import %s' % "x13_hash")
+    except ImportError:
+      sys.exit("Cannot run X11 algorithm: module x13_hash not found")
+    header_hash = x13_hash.getPoWHash(data_block)[::-1]
+  elif algorithm == 'X15':
+    try:
+      exec('import %s' % "x15_hash")
+    except ImportError:
+      sys.exit("Cannot run X15 algorithm: module x15_hash not found")
+    header_hash = x15_hash.getPoWHash(data_block)[::-1]
   return sha256_hash, header_hash
 
 
