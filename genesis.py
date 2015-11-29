@@ -129,12 +129,10 @@ def generate_hash(data_block, algorithm, start_nonce, target):
   print 'Searching for genesis hash..'
   nonce           = start_nonce
   last_updated    = time.time()
-  difficulty      = float(0xFFFF) * 2**208 / target
-  update_interval = int(1000000 * difficulty)
 
   while True:
     sha256_hash, header_hash = generate_hashes_from_block(data_block, algorithm)
-    last_updated             = calculate_hashrate(nonce, update_interval, difficulty, last_updated)
+    last_updated             = calculate_hashrate(nonce, last_updated)
     if is_genesis_hash(header_hash, target):
       if algorithm == "X11" or algorithm == "X13" or algorithm == "X15":
         return (header_hash, nonce)
@@ -176,11 +174,11 @@ def is_genesis_hash(header_hash, target):
   return int(header_hash.encode('hex_codec'), 16) < target
 
 
-def calculate_hashrate(nonce, update_interval, difficulty, last_updated):
-  if nonce % update_interval == update_interval - 1:
+def calculate_hashrate(nonce, last_updated):
+  if nonce % 1000000 == 999999:
     now             = time.time()
-    hashrate        = round(update_interval/(now - last_updated))
-    generation_time = round(difficulty * pow(2, 32) / hashrate / 3600, 1)
+    hashrate        = round(1000000/(now - last_updated))
+    generation_time = round(pow(2, 32) / hashrate / 3600, 1)
     sys.stdout.write("\r%s hash/s, estimate: %s h"%(str(hashrate), str(generation_time)))
     sys.stdout.flush()
     return now
